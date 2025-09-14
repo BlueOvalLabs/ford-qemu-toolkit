@@ -13,6 +13,8 @@ EXTRACT = {
     ],
 }
 
+BOOT_IMG = os.path.join(CACHE_DIR, "boot.img")
+
 def extract_vbf_file(vbf_file_path: str, files_to_extract):
     """Extract only specified files from a VBF file."""
     if not os.path.exists(vbf_file_path):
