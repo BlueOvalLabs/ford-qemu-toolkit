@@ -3,7 +3,7 @@ import os
 from utilities import vbf
 from download import CACHE_DIR as DOWNLOAD_CACHE_DIR
 
-CACHE_DIR = os.path.join("cache", "extracted")
+CACHE_DIR = os.path.join("..", "work", "extracted")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 EXTRACT = {

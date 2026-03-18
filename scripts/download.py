@@ -3,7 +3,7 @@ import os
 import requests
 from urllib.parse import urlparse
 
-CACHE_DIR = os.path.join("cache", "downloads")
+CACHE_DIR = os.path.join("..", "work", "downloads")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 # List of files to download

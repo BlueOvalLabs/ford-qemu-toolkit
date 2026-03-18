@@ -8,7 +8,7 @@ import utilities.boot_img as boot_img
 from extract import BOOT_IMG
 
 # Output directory
-CACHE_DIR = os.path.join("cache", "initramfs")
+CACHE_DIR = os.path.join("..", "work", "initramfs")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 # Where we put the compressed kernel

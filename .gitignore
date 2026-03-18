@@ -1,8 +1,5 @@
-# Cache for downloaded files, extracting VBFs, etc.
-cache/
-
-# Final VM products
-vm/
+# Working directory: downloads, extracted VBFs, build artefacts
+work/
 
 .DS_Store
 
