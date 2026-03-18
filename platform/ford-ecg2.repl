@@ -1,0 +1,68 @@
+// Renode platform description — Ford ECG2 automotive Linux emulation
+//
+// Mirrors the QEMU -M virt -cpu cortex-a53 memory map so the stock Ford
+// kernel boots unmodified (same PL011 UART, GICv2, VirtIO MMIO addresses).
+
+// ── CPU ──────────────────────────────────────────────────────────────────────
+
+cpu: CPU.ARMv8A @ sysbus
+    cpuType: "cortex-a53"
+    genericInterruptController: gic
+
+// ── Generic timer ─────────────────────────────────────────────────────────────
+// Linux requires the ARM generic timer to boot; frequency matches QEMU virt.
+
+timer: Timers.ARM_GenericTimer @ cpu
+    frequency: 62500000
+    EL1PhysicalTimerIRQ -> gic#0@30
+    EL1VirtualTimerIRQ  -> gic#0@27
+    EL3PhysicalTimerIRQ -> gic#0@29
+    NonSecureEL2PhysicalTimerIRQ -> gic#0@26
+    NonSecureEL2VirtualTimerIRQ  -> gic#0@28
+
+// ── GICv2 ────────────────────────────────────────────────────────────────────
+// Distributor @ 0x08000000, CPU interface @ 0x08010000 — matches QEMU virt.
+
+gic: IRQControllers.ARM_GenericInterruptController @ {
+        sysbus new Bus.BusMultiRegistration { address: 0x08000000; size: 0x10000; region: "distributor" };
+        sysbus new Bus.BusMultiRegistration { address: 0x08010000; size: 0x10000; region: "cpuInterface" }
+    }
+    architectureVersion: .GICv2
+    supportsTwoSecurityStates: false
+
+// ── PL011 UART ───────────────────────────────────────────────────────────────
+// @ 0x09000000, SPI 1 — Linux enumerates this as ttyAMA0.
+
+uart0: UART.PL011 @ sysbus 0x09000000
+    -> gic@1
+
+// ── RAM ──────────────────────────────────────────────────────────────────────
+// 4 GiB at 0x40000000 (QEMU virt ARM64 RAM base).
+//   0x40000000  DTB  (ford-ecg2.dtb)
+//   0x40200000  kernel Image (vmlinuz)
+//   0x48000000  initramfs (initramfs-repacked.cpio)
+
+ram: Memory.MappedMemory @ sysbus 0x40000000
+    size: 0x100000000
+
+// ── VirtIO MMIO ──────────────────────────────────────────────────────────────
+// Slots at 0x0a000000 + n*0x200, SPI 16+n — matches QEMU virt layout.
+//
+// Slot 0 — rootfs block device  → /dev/vda in guest
+//   Loaded in boot.resc via: virtioBlk0 LoadImage @work/rootfs.img
+//
+// Slot 1 — logs block device    → /dev/vdb in guest
+//   Loaded in boot.resc via: virtioBlk1 LoadImage @work/logs.bin
+//
+// Slot 2 — network (no VirtIO net in Renode; tagged as stub so kernel
+//           probes and moves on without hanging).
+
+virtioBlk0: Storage.VirtIOBlockDevice @ sysbus 0x0a000000
+    -> gic@16
+
+virtioBlk1: Storage.VirtIOBlockDevice @ sysbus 0x0a000200
+    -> gic@17
+
+sysbus:
+    init:
+        Tag <0x0a000400 0x200> "virtio_mmio_net"

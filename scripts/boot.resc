@@ -1,0 +1,93 @@
+# Renode script — Ford ECG2 automotive Linux emulation
+#
+# Equivalent to the former QEMU invocation:
+#   qemu-system-aarch64 -M virt -cpu cortex-a53 -m 4096M
+#     -kernel vmlinuz -initrd initramfs-repacked.cpio
+#     -append 'rootwait console=ttyAMA0 iomem=relaxed boot_bank=a'
+#     -device virtio-blk-device,drive=drive0 -drive file=rootfs.img,...
+#     -netdev user,id=net0,hostfwd=tcp::2222-:22
+#     -device virtio-net-device,netdev=net0
+#     -device virtio-blk-device,drive=drive1 -drive file=logs.bin,...
+#
+# Run:  renode scripts/boot.resc
+#       renode --console scripts/boot.resc   (interactive Renode Monitor)
+
+# ── Paths (relative to project root, where Renode is invoked from) ────────────
+
+$platform?=@platform/ford-ecg2.repl
+$dtb?=@platform/ford-ecg2.dtb
+$kernel?=@work/initramfs/vmlinuz
+$initramfs?=@work/initramfs/initramfs-repacked.cpio
+$rootfs?=@work/rootfs.img
+$logs?=@work/logs.bin
+
+# ── Machine setup ─────────────────────────────────────────────────────────────
+
+mach create "ford-ecg2"
+machine LoadPlatformDescription $platform
+
+# Silence the flood of sysbus WARNING messages that Renode emits when the
+# kernel probes virtual address ranges with no backing peripheral/RAM.
+# These are normal during early Linux boot (BSS zeroing, page-allocator init,
+# device probing) and do not indicate a real problem.
+# Level 3 = ERROR only; level 2 = WARNING+; level 1 = INFO+.
+logLevel 3 sysbus
+
+# ── Load images ───────────────────────────────────────────────────────────────
+# ARM64 Linux boot protocol:
+#   X0 = physical address of DTB
+#   PC = kernel entry point (start of Image binary)
+#
+# Memory layout (must not overlap):
+#   0x40000000  DTB          (~16 KiB)
+#   0x40200000  kernel Image (vmlinuz)
+#   0x48000000  initramfs
+
+sysbus LoadBinary $dtb        0x40000000
+sysbus LoadBinary $kernel     0x40200000
+sysbus LoadBinary $initramfs  0x48000000
+
+# Point the CPU at the kernel and hand it the DTB address via X0.
+# The ARM64 Linux kernel entry code (head.S) handles EL1 and EL2 entry but
+# NOT EL3.  Renode's default enables EL3 so the CPU resets there; the first
+# exception before the kernel sets up its vector table vectors to VBAR_EL3=0
+# and crashes immediately.  Disable EL3 and EL2 so the CPU resets at EL1,
+# which Linux handles natively (init_kernel_el in head.S).
+cpu SetAvailableExceptionLevels true false
+
+cpu PC  0x40200000
+cpu SetRegister "X0" 0x40000000    # X0 = DTB physical address
+cpu SetRegister "X1" 0x00000000    # X1 = 0 (required by boot protocol)
+cpu SetRegister "X2" 0x00000000    # X2 = 0
+cpu SetRegister "X3" 0x00000000    # X3 = 0
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+# Attach disk images to the VirtIO block devices declared in ford-ecg2.repl.
+# The guest sees these as /dev/vda and /dev/vdb respectively.
+
+virtioBlk0 LoadImage $rootfs true
+virtioBlk1 LoadImage $logs true
+
+# ── Networking ────────────────────────────────────────────────────────────────
+# Renode has no VirtIO net peripheral; slot 2 (0x0a000400) is tagged as a stub
+# in ford-ecg2.repl so the kernel probes and moves on. For SSH access, run an
+# sshd inside the guest and use the Renode host-guest networking if needed.
+
+# ── Console ───────────────────────────────────────────────────────────────────
+# Show the PL011 UART in the interactive terminal AND tee all output to a
+# log file so the full kernel boot transcript survives a crash.
+
+showAnalyzer sysbus.uart0
+# @ resolves relative to this script's directory (scripts/).
+# ../work/uart.log steps up to the project root then into work/.
+sysbus.uart0 CreateFileBackend @../work/uart.log true
+
+# ── Pre-enable PL011 UART ─────────────────────────────────────────────────────
+# Renode's PL011 model rejects DATA writes unless UARTEN is set in UARTCR.
+# The kernel's earlycon driver assumes the bootloader already enabled the UART
+# and writes directly to the DATA register.  Simulate bootloader init by
+# writing UARTCR (base + 0x30) with UARTEN|TXE|RXE = 0x301.
+sysbus WriteDoubleWord 0x09000030 0x301
+
+# ── Start ─────────────────────────────────────────────────────────────────────
+start

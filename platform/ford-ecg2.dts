@@ -1,0 +1,122 @@
+// Device tree source for Ford ECG2 Renode emulation.
+//
+// This mirrors the DTB that QEMU auto-generates for -M virt -cpu cortex-a53,
+// so the stock Ford kernel (compiled with virtio + PL011 drivers) boots
+// unmodified in Renode.
+//
+// Compile: dtc -I dts -O dtb -o ford-ecg2.dtb ford-ecg2.dts
+//          (or: make dtb)
+//
+// Memory layout
+// ─────────────
+//  0x40000000  DTB          (this file, compiled)
+//  0x40200000  kernel Image (vmlinuz, loaded at 2 MiB offset from RAM base)
+//  0x48000000  initramfs    (initramfs-repacked.cpio)
+
+/dts-v1/;
+
+/ {
+	interrupt-parent = <&gic>;
+	#address-cells = <2>;
+	#size-cells = <2>;
+	compatible = "linux,dummy-virt";
+
+	chosen {
+		// earlycon enables kernel output before console_init() — critical for
+		// seeing what happens during memory init, GIC setup, etc.
+		bootargs = "earlycon=pl011,0x09000000 console=ttyAMA0 iomem=relaxed boot_bank=a rootwait";
+		linux,initrd-start = <0x0 0x48000000>;
+		linux,initrd-end   = <0x0 0x50000000>;  // upper bound; kernel reads actual size
+	};
+
+	// 4 GiB RAM at the QEMU virt ARM64 base address
+	memory@40000000 {
+		device_type = "memory";
+		reg = <0x00 0x40000000 0x01 0x00000000>;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0>;
+			enable-method = "psci";
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "hvc";
+	};
+
+	// GIC-400 — distributor @ 0x08000000, CPU interface @ 0x08010000
+	gic: intc@8000000 {
+		compatible = "arm,cortex-a15-gic";
+		#interrupt-cells = <3>;
+		interrupt-controller;
+		reg = <0x0 0x08000000 0x0 0x10000>,
+		      <0x0 0x08010000 0x0 0x10000>;
+	};
+
+	// ARM architected generic timer — PPIs wired to GIC in ford-ecg2.repl.
+	// GIC interrupt cells: <type number flags>
+	//   type 1 = PPI,  flags 0x08 = IRQ_TYPE_LEVEL_LOW
+	// PPI numbers match Linux's arch_timer.c expectations:
+	//   PPI 13 = Secure/EL3 physical,  PPI 14 = Non-secure EL1 physical
+	//   PPI 11 = Virtual timer,         PPI 10 = Non-secure EL2 physical
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <1 13 0x08>,
+		             <1 14 0x08>,
+		             <1 11 0x08>,
+		             <1 10 0x08>;
+		// CNTFRQ_EL0 is normally written by EL3 firmware (ATF) before the
+		// kernel runs.  Since we start at EL2 with no EL3 firmware, supply
+		// the frequency here so arch_timer_detect_rate() uses the DTB value
+		// instead of reading the (zero-initialised) system register.
+		// Must match the 'frequency' property in ford-ecg2.repl.
+		clock-frequency = <62500000>;
+		always-on;
+	};
+
+	// PL011 UART — Linux enumerates this as ttyAMA0
+	// IRQ: SPI 1 (GIC cells: type=0 SPI, num=1, flags=4 level-high)
+	pl011@9000000 {
+		compatible = "arm,pl011", "arm,primecell";
+		reg = <0x0 0x09000000 0x0 0x1000>;
+		interrupts = <0x00 0x01 0x04>;
+		clocks = <&apb_pclk>, <&apb_pclk>;
+		clock-names = "uartclk", "apb_pclk";
+	};
+
+	clocks {
+		apb_pclk: apb_pclk {
+			compatible = "fixed-clock";
+			clock-frequency = <24000000>;
+			#clock-cells = <0>;
+		};
+	};
+
+	// VirtIO MMIO bus — 3 slots matching QEMU virt layout.
+	// QEMU assigns slots at 0x0a000000 + n*0x200, IRQs = SPI(16+n).
+	// Slot 0 → rootfs block device  (/dev/vda in guest)
+	// Slot 1 → logs block device    (/dev/vdb in guest)
+	// Slot 2 → network device       (eth0 in guest)
+	virtio_mmio@a000000 {
+		compatible = "virtio,mmio";
+		reg = <0x0 0x0a000000 0x0 0x200>;
+		interrupts = <0x00 0x10 0x01>;  // SPI 16, edge-rising
+	};
+	virtio_mmio@a000200 {
+		compatible = "virtio,mmio";
+		reg = <0x0 0x0a000200 0x0 0x200>;
+		interrupts = <0x00 0x11 0x01>;  // SPI 17, edge-rising
+	};
+	virtio_mmio@a000400 {
+		compatible = "virtio,mmio";
+		reg = <0x0 0x0a000400 0x0 0x200>;
+		interrupts = <0x00 0x12 0x01>;  // SPI 18, edge-rising
+	};
+};
