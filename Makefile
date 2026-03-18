@@ -33,19 +33,23 @@ $(QEMU_BIN): $(QEMU_BUILD)/Makefile
 qemu: $(QEMU_BIN)
 
 # ── Python pipeline ───────────────────────────────────────────────────────────
+UTILS := $(SCRIPTS)/utilities/vbf.py \
+         $(SCRIPTS)/utilities/boot_img.py \
+         $(SCRIPTS)/utilities/ext4.py
+
 $(WORK):
 	mkdir -p $@
 
-$(DOWNLOADS): | $(WORK)
+$(DOWNLOADS): $(SCRIPTS)/download.py | $(WORK)
 	cd $(SCRIPTS) && $(PYTHON) download.py
 
-$(EXTRACTED): $(DOWNLOADS)
+$(EXTRACTED): $(DOWNLOADS) $(SCRIPTS)/extract.py $(UTILS)
 	cd $(SCRIPTS) && $(PYTHON) extract.py
 
-$(INITRAMFS): $(EXTRACTED)
+$(INITRAMFS): $(EXTRACTED) $(SCRIPTS)/initramfs.py $(UTILS)
 	cd $(SCRIPTS) && $(PYTHON) initramfs.py
 
-$(ROOTFS_IMG): $(EXTRACTED)
+$(ROOTFS_IMG): $(EXTRACTED) $(SCRIPTS)/rootfs.py $(UTILS)
 	cd $(SCRIPTS) && $(PYTHON) rootfs.py
 
 $(LOGS_BIN): | $(WORK)
