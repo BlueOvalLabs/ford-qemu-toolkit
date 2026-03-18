@@ -10,15 +10,14 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 DOWNLOADS = [
     # 14H4181 contains bootloader_upgrade.bin, netloader-boot.img (we don't need these for now)
     # version 2.0.5.19
-    #"https://vehiclesoftware.ford.com/e8ff06b7-e1a1-493f-ae68-9a1e9458dbd4_PU5T-14H481-GAD.vbf",
+    "https://download.jjtech.dev/ford/PU5T-14H481-GAD.vbf",
 
     # 14H486 contains boot.img, ecg2-wrlinux-image-product-release-ford-ecg2-s32g2xx.squashfs-lzo.verity
     # version 2.0.5.1522
-    "https://vehiclesoftware.ford.com/f6daadd4-775d-476e-a981-1440844fa868_PU5T-14H486-GAM.vbf",
-    #"https://ivsu.binaries.ford.com/swparts/PU5T-14H486-GAM_1721250604000.VBF"
+    "https://download.jjtech.dev/ford/PU5T-14H486-GAM.vbf",
     
     # version 1.0.28.25
-    #"https://ivsu.binaries.ford.com/swparts/PU5T-14H486-AAD_1634062348000.VBF"
+    "https://download.jjtech.dev/ford/PU5T-14H486-AAD.vbf"
 ]
 
 def sanitize_filename(url):
