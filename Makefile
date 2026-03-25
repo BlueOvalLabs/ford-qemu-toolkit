@@ -19,7 +19,6 @@ DOWNLOADS   := $(WORK)/downloads
 EXTRACTED   := $(WORK)/extracted
 INITRAMFS   := $(WORK)/initramfs
 ROOTFS_IMG  := $(WORK)/rootfs.img
-LOGS_BIN    := $(WORK)/logs.bin
 
 # ─────────────────────────────────────────────────────────────────────────────
 .PHONY: all boot qemu download extract initramfs rootfs clean distclean
@@ -58,16 +57,13 @@ $(INITRAMFS): $(EXTRACTED) $(SCRIPTS)/initramfs.py $(UTILS)
 $(ROOTFS_IMG): $(EXTRACTED) $(SCRIPTS)/rootfs.py $(UTILS)
 	cd $(SCRIPTS) && $(PYTHON) rootfs.py
 
-$(LOGS_BIN): | $(WORK)
-	dd if=/dev/zero of=$@ bs=1M count=5
-
 download:  $(DOWNLOADS)
 extract:   $(EXTRACTED)
 initramfs: $(INITRAMFS)
 rootfs:    $(ROOTFS_IMG)
 
 # ── Boot ──────────────────────────────────────────────────────────────────────
-boot: $(QEMU_BIN) $(INITRAMFS) $(ROOTFS_IMG) $(LOGS_BIN)
+boot: $(QEMU_BIN) $(INITRAMFS) $(ROOTFS_IMG)
 	cd $(SCRIPTS) && QEMU=$(CURDIR)/$(QEMU_BIN) ./boot.sh
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
