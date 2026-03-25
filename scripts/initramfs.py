@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import shutil
 
 import utilities.boot_img as boot_img
 import utilities.cpio as cpio
@@ -15,6 +16,14 @@ VMZ_FILE = os.path.join(CACHE_DIR, "vmlinuz")
 # Extracted initramfs rootfs directory
 EXTRACTED_DIR = os.path.join(CACHE_DIR, "extracted")
 os.makedirs(EXTRACTED_DIR, exist_ok=True)
+
+PATCHES_DIR = "patches"
+
+# Files to copy into the extracted initramfs before repacking.
+# Each entry is (src relative to PATCHES_DIR, dest relative to EXTRACTED_DIR).
+PATCHES = [
+    ("98-custom", "init.d/98-custom"),
+]
 
 def extract_kernel():
     if not os.path.exists(BOOT_IMG):
@@ -75,6 +84,14 @@ def extract_initramfs(vmlinuz_file=VMZ_FILE):
     print("Extracting initramfs...")
     cpio.extract(temp_cpio, EXTRACTED_DIR)
     print(f"Initramfs extracted to {EXTRACTED_DIR}")
+
+    # Apply patches
+    for src_rel, dest_rel in PATCHES:
+        src = os.path.join(PATCHES_DIR, src_rel)
+        dest = os.path.join(EXTRACTED_DIR, dest_rel)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(src, dest)
+        print(f"Patched {dest_rel}")
 
     # Repack the initramfs as a cpio archive with root ownership
     repacked_cpio = os.path.join(CACHE_DIR, "initramfs-repacked.cpio")

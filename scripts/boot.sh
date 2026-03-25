@@ -9,7 +9,15 @@ CACHE="${SCRIPT_DIR}/../work"
 
 MASK_SERVICES=(
   # MQTT broker, hangs for a long time on boot before crashing
-  broker.service
+  #broker.service
+
+  # Stability Monitor, shuts down system after a few minutes
+  # Mask this to keep the system alive for debugging the root cause.
+  sm-sysmgr.service
+
+  # FNV2 services
+  fnv2vim.service
+  fnv2ipcd.service
 )
 
 MASK_ARGS=""

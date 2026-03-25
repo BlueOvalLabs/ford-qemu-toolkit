@@ -1,0 +1,14 @@
+#!/bin/sh
+# added to init.d in initramfs
+# add netinit.done to rootfs to fix issues with MQTT broker and other services
+
+custom_enabled() {
+	return 0
+}
+
+custom_run() {
+    echo "tmpfs stuff"
+    mount -t tmpfs tmpfs /tmp
+    touch /tmp/netinit.done
+    mount --move /tmp $ROOTFS_DIR/tmp
+}
