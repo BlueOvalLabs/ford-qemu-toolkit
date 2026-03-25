@@ -2,6 +2,7 @@
 import gzip
 import os
 import subprocess
+from unittest import result
 
 import pycpio
 import utilities.boot_img as boot_img
@@ -86,12 +87,16 @@ def extract_initramfs(vmlinuz_file=VMZ_FILE):
     # Extract cpio
     print("Extracting initramfs with cpio...")
 
-    subprocess.run(
-        ["cpio", "-idm"],
-        input=open(temp_cpio, "rb").read(),
-        cwd=EXTRACTED_DIR,
-        check=True
+    result = subprocess.run(
+         ["cpio", "-idm"],
+         input=open(temp_cpio, "rb").read(),
+         cwd=EXTRACTED_DIR
     )
+    
+    # Exit code 2 = non-fatal warnings (e.g. cannot mknod device files without root).
+    # The files we care about are still extracted.
+    if result.returncode not in (0, 2):
+        raise subprocess.CalledProcessError(result.returncode, result.args)
 
     print(f"Initramfs extracted to {EXTRACTED_DIR}")
     
