@@ -4,7 +4,12 @@ SCRIPTS    := scripts
 # ── QEMU ──────────────────────────────────────────────────────────────────────
 QEMU_SRC   := qemu
 QEMU_BUILD := qemu/build
+UNAME      := $(shell uname)
+ifeq ($(UNAME),Darwin)
 QEMU_BIN   := $(QEMU_BUILD)/qemu-system-aarch64-unsigned
+else
+QEMU_BIN   := $(QEMU_BUILD)/qemu-system-aarch64
+endif
 
 NCPU := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
