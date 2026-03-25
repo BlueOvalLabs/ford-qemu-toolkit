@@ -71,10 +71,9 @@ def main():
     system_a.write_data(disk, squashfs_data)
 
     print("Writing ext4 partitions (perm, dps, data)...")
-    empty_ext4 = make_empty_ext4(8 * MiB)
-    perm.write_data(disk, empty_ext4)
-    dps.write_data(disk, empty_ext4)
-    data.write_data(disk, empty_ext4)
+    perm.write_data(disk, make_empty_ext4(8 * MiB))
+    dps.write_data(disk, make_empty_ext4(8 * MiB))
+    data.write_data(disk, make_empty_ext4(8 * MiB))
 
     print("Writing boot_fs (RAW0)...")
     boot_fs.write_data(disk, mk_bootfs())

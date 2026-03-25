@@ -12,8 +12,8 @@ Block layout
   3          : inode bitmap
   4 – 35     : inode table  (512 inodes × 256 B = 32 blocks)
   36         : root directory data
-  37 – 292   : journal  (JOURNAL_BLOCKS = 256 blocks, ~1 MiB)
-  293 +      : free data blocks
+  37 – 1060  : journal  (JOURNAL_BLOCKS = 1024 blocks, ~4 MiB)
+  1061 +     : free data blocks
 
 Supports sizes up to ~128 MiB (single block group, 4 KB blocks).
 """
@@ -25,7 +25,7 @@ BLOCK_SIZE       = 4096
 INODE_SIZE       = 256
 INODES_PER_GROUP = 512
 BLOCKS_PER_GROUP = 32768
-JOURNAL_BLOCKS   = 256      # 1 MiB journal; block 0 of journal = JBD2 superblock
+JOURNAL_BLOCKS   = 1024      # 4 MiB journal; JBD2 minimum is 1024 blocks
 
 # Special inode numbers
 ROOT_INO         = 2
@@ -201,10 +201,12 @@ def _dir_entry(ino: int, rec_len: int, name: str, file_type: int) -> bytes:
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
 
-def make_empty_ext4(size_bytes: int) -> bytes:
+def make_empty_ext4(size_bytes: int, dirs=()) -> bytes:
     """
     Return a bytes object containing a minimal valid empty ext4 filesystem
     with a JBD2 journal.  Mountable with data=journal.
+
+    dirs: sequence of directory names to pre-create under the root.
 
     Requirements:
       - size_bytes must be a multiple of BLOCK_SIZE (4096)
@@ -219,15 +221,16 @@ def make_empty_ext4(size_bytes: int) -> bytes:
     inode_table_blocks = (INODES_PER_GROUP * INODE_SIZE) // BLOCK_SIZE   # 32 blocks
 
     # Fixed block addresses
-    BLOCK_BITMAP_BLK = 2
-    INODE_BITMAP_BLK = 3
-    INODE_TABLE_BLK  = 4
-    ROOT_DATA_BLK    = INODE_TABLE_BLK + inode_table_blocks              # 36
-    JOURNAL_START    = ROOT_DATA_BLK + 1                                  # 37
+    BLOCK_BITMAP_BLK  = 2
+    INODE_BITMAP_BLK  = 3
+    INODE_TABLE_BLK   = 4
+    ROOT_DATA_BLK     = INODE_TABLE_BLK + inode_table_blocks             # 36
+    JOURNAL_START     = ROOT_DATA_BLK + 1                                 # 37
+    SUBDIR_BLKS_START = JOURNAL_START + JOURNAL_BLOCKS                    # first block after journal
 
-    used_blocks = JOURNAL_START + JOURNAL_BLOCKS                          # 293
+    used_blocks = JOURNAL_START + JOURNAL_BLOCKS + len(dirs)
     free_blocks = total_blocks - used_blocks
-    free_inodes = INODES_PER_GROUP - RESERVED_INODES                      # 502
+    free_inodes = INODES_PER_GROUP - RESERVED_INODES - len(dirs)
 
     fs_uuid = _uuid.uuid4().bytes
     image   = bytearray(size_bytes)
@@ -240,13 +243,22 @@ def make_empty_ext4(size_bytes: int) -> bytes:
                           free_blocks, free_inodes)
     image[BLOCK_SIZE:BLOCK_SIZE + 32] = gd
 
-    # ── Block Bitmap (block 2): mark blocks 0..used_blocks-1 allocated ────────
+    # ── Block Bitmap (block 2) ────────────────────────────────────────────────
+    # Bits 0..(used_blocks-1): allocated; bits used_blocks..(total_blocks-1): free;
+    # bits total_blocks..(BLOCKS_PER_GROUP-1): allocated (out of partition range).
     bb = bytearray(BLOCK_SIZE)
     for i in range(used_blocks // 8):
         bb[i] = 0xFF
     rem = used_blocks % 8
     if rem:
         bb[used_blocks // 8] = (1 << rem) - 1
+    tail_byte = total_blocks // 8
+    tail_rem  = total_blocks % 8
+    if tail_rem:
+        bb[tail_byte] |= 0xFF << tail_rem & 0xFF
+        tail_byte += 1
+    for i in range(tail_byte, BLOCK_SIZE):
+        bb[i] = 0xFF
     image[2 * BLOCK_SIZE:3 * BLOCK_SIZE] = bb
 
     # ── Inode Bitmap (block 3): mark reserved inodes 1-10 allocated ──────────
@@ -254,6 +266,9 @@ def make_empty_ext4(size_bytes: int) -> bytes:
     ib = bytearray(BLOCK_SIZE)
     ib[0] = 0xFF   # inodes 1-8
     ib[1] = 0x03   # inodes 9-10
+    for i in range(len(dirs)):
+        idx = RESERVED_INODES + i   # bit index 10, 11, ... for inodes 11, 12, ...
+        ib[idx // 8] |= 1 << (idx % 8)
     image[3 * BLOCK_SIZE:4 * BLOCK_SIZE] = ib
 
     inode_table_off = INODE_TABLE_BLK * BLOCK_SIZE
@@ -262,7 +277,7 @@ def make_empty_ext4(size_bytes: int) -> bytes:
     root_inode = _pack_inode(
         mode      = 0o040755,
         size      = BLOCK_SIZE,
-        links     = 2,
+        links     = 2 + len(dirs),
         blocks_512= BLOCK_SIZE // 512,
         flags     = EXT4_EXTENTS_FL,
         i_block   = _extent_tree(0, 1, ROOT_DATA_BLK),
@@ -282,14 +297,40 @@ def make_empty_ext4(size_bytes: int) -> bytes:
     image[inode_table_off + 7 * INODE_SIZE : inode_table_off + 8 * INODE_SIZE] = journal_inode
 
     # ── Root Directory Data (block ROOT_DATA_BLK) ─────────────────────────────
-    dot    = _dir_entry(ROOT_INO, 12,               '.', FT_DIR)
-    dotdot = _dir_entry(ROOT_INO, BLOCK_SIZE - 12, '..', FT_DIR)
     dir_off = ROOT_DATA_BLK * BLOCK_SIZE
-    image[dir_off:dir_off + 12]              = dot
-    image[dir_off + 12:dir_off + BLOCK_SIZE] = dotdot
+    image[dir_off:dir_off + 12] = _dir_entry(ROOT_INO, 12, '.', FT_DIR)
+    if dirs:
+        image[dir_off + 12:dir_off + 24] = _dir_entry(ROOT_INO, 12, '..', FT_DIR)
+        offset = 24
+        for i, name in enumerate(dirs):
+            ino        = RESERVED_INODES + 1 + i
+            is_last    = (i == len(dirs) - 1)
+            entry_size = (8 + len(name) + 3) & ~3
+            rec_len    = BLOCK_SIZE - offset if is_last else entry_size
+            image[dir_off + offset:dir_off + offset + rec_len] = _dir_entry(ino, rec_len, name, FT_DIR)
+            offset += rec_len
+    else:
+        image[dir_off + 12:dir_off + BLOCK_SIZE] = _dir_entry(ROOT_INO, BLOCK_SIZE - 12, '..', FT_DIR)
 
     # ── JBD2 Journal Superblock (first block of journal) ─────────────────────
     jbd2_off = JOURNAL_START * BLOCK_SIZE
     image[jbd2_off:jbd2_off + BLOCK_SIZE] = _pack_jbd2_superblock(JOURNAL_BLOCKS, fs_uuid)
+
+    # ── Subdirectory inodes and data blocks ───────────────────────────────────
+    for i, name in enumerate(dirs):
+        dir_ino = RESERVED_INODES + 1 + i
+        dir_blk = SUBDIR_BLKS_START + i
+        dir_inode = _pack_inode(
+            mode      = 0o040755,
+            size      = BLOCK_SIZE,
+            links     = 2,
+            blocks_512= BLOCK_SIZE // 512,
+            flags     = EXT4_EXTENTS_FL,
+            i_block   = _extent_tree(0, 1, dir_blk),
+        )
+        image[inode_table_off + (dir_ino - 1) * INODE_SIZE : inode_table_off + dir_ino * INODE_SIZE] = dir_inode
+        blk_off = dir_blk * BLOCK_SIZE
+        image[blk_off:blk_off + 12]              = _dir_entry(dir_ino, 12,               '.', FT_DIR)
+        image[blk_off + 12:blk_off + BLOCK_SIZE] = _dir_entry(ROOT_INO, BLOCK_SIZE - 12, '..', FT_DIR)
 
     return bytes(image)
