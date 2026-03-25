@@ -8,16 +8,31 @@ QEMU="${QEMU:-${SCRIPT_DIR}/../qemu/build/qemu-system-aarch64-unsigned}"
 CACHE="${SCRIPT_DIR}/../work"
 
 MASK_SERVICES=(
-  # MQTT broker, hangs for a long time on boot before crashing
-  #broker.service
+  # Stub this with /tmp/netinit.done created in 98-custom
+  # TODO: Does a bunch of stuff to setup custom network interface we should replicate
+  nw_util.service
 
   # Stability Monitor, shuts down system after a few minutes
-  # Mask this to keep the system alive for debugging the root cause.
+  # Mask this to keep the system alive for debugging the root cause
   sm-sysmgr.service
 
-  # FNV2 services
+  # FNV2 services, require CAN/hardware?
   fnv2vim.service
   fnv2ipcd.service
+  fnv2_ipc_vim_renice.service
+
+  # ??? Misc services
+  tcpdump.service # Network Packet Capture
+  cpmd.service # Cloud Package Manager Daemon        
+  pimd.service # PIMD multicast routing service
+
+  # ALM package manager, launcher will crash
+  almbridge.service
+  launcher.service
+  pacmand.service
+
+  # Don't wait for the network to come online
+  systemd-networkd-wait-online.service
 )
 
 MASK_ARGS=""
