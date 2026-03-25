@@ -1,6 +1,3 @@
 requests
 rich
 gpt_image
-# TODO: Replace pycpio with better library
-git+https://github.com/desultory/zenlib.git
-git+https://github.com/desultory/pycpio.git

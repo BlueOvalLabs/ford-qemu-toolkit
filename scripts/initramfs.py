@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-import gzip
 import os
-import subprocess
-from unittest import result
 
-import pycpio
 import utilities.boot_img as boot_img
+import utilities.cpio as cpio
 from extract import BOOT_IMG
 
 # Output directory
@@ -50,16 +47,6 @@ def extract_kernel():
             out_f.write(data)
         print(f"Extracted kernel -> {VMZ_FILE} ({kernel_header['size']} bytes)")
 
-def compress_cpio_as_root(src_dir: str, dest_file: str):
-    # This is the entire reason why we need pycpio...
-    import pycpio
-    from pycpio.cpio import CPIOData
-    from pathlib import Path
-    cpio = pycpio.PyCPIO()
-    data = CPIOData.from_dir(Path(src_dir), uid=0, gid=0, relative=True)
-    cpio.entries.add_entry(data) # type: ignore
-    cpio.write_cpio_file(dest_file)
-
 def extract_initramfs(vmlinuz_file=VMZ_FILE):
     if not os.path.exists(vmlinuz_file):
         raise FileNotFoundError(f"{vmlinuz_file} not found")
@@ -84,25 +71,14 @@ def extract_initramfs(vmlinuz_file=VMZ_FILE):
     with open(temp_cpio, "wb") as f:
         f.write(data[cpio_start:])
 
-    # Extract cpio
-    print("Extracting initramfs with cpio...")
-
-    result = subprocess.run(
-         ["cpio", "-idm"],
-         input=open(temp_cpio, "rb").read(),
-         cwd=EXTRACTED_DIR
-    )
-    
-    # Exit code 2 = non-fatal warnings (e.g. cannot mknod device files without root).
-    # The files we care about are still extracted.
-    if result.returncode not in (0, 2):
-        raise subprocess.CalledProcessError(result.returncode, result.args)
-
+    # Extract cpio (device files that require root are silently skipped)
+    print("Extracting initramfs...")
+    cpio.extract(temp_cpio, EXTRACTED_DIR)
     print(f"Initramfs extracted to {EXTRACTED_DIR}")
-    
-    # Repack the initramfs as a compressed cpio archive with root ownership
+
+    # Repack the initramfs as a cpio archive with root ownership
     repacked_cpio = os.path.join(CACHE_DIR, "initramfs-repacked.cpio")
-    compress_cpio_as_root(EXTRACTED_DIR, repacked_cpio)
+    cpio.pack(EXTRACTED_DIR, repacked_cpio, uid=0, gid=0)
     print(f"Repacked initramfs as {repacked_cpio}")
 
 def main():
