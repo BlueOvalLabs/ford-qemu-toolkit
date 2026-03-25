@@ -30,7 +30,8 @@ all: boot
 $(QEMU_BUILD)/Makefile: $(QEMU_SRC)/configure
 	mkdir -p $(QEMU_BUILD)
 	cd $(QEMU_BUILD) && $(CURDIR)/$(QEMU_SRC)/configure \
-	    --target-list=aarch64-softmmu
+	    --target-list=aarch64-softmmu \
+	    --enable-slirp
 
 $(QEMU_BIN): $(QEMU_BUILD)/Makefile
 	$(MAKE) -C $(QEMU_BUILD) -j$(NCPU)
