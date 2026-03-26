@@ -46,7 +46,16 @@ def main():
 
     squashfs_size = len(squashfs_data)
     partition_size = align_up(squashfs_size, MiB)
-    disk_size = align_up(partition_size + (8 + 8 + 8 + 2 + 2) * MiB, MiB)
+
+    PERM_SIZE = 8 * MiB
+    DPS_SIZE = 8 * MiB
+    DATA_SIZE = 128 * MiB
+    BOOTFS_SIZE = 2 * MiB
+    GPT_OVERHEAD = 2 * MiB
+
+    TOTAL_SIZE = partition_size + PERM_SIZE + DPS_SIZE + DATA_SIZE + BOOTFS_SIZE + GPT_OVERHEAD
+
+    disk_size = align_up(TOTAL_SIZE, MiB)
 
     print(f"Creating {ROOTFS_IMG} ({disk_size // MiB} MiB)...")
     if os.path.exists(ROOTFS_IMG):
@@ -55,10 +64,10 @@ def main():
     disk.create(disk_size)
 
     system_a = Partition("system_a", size=partition_size, type_guid=PartitionType.LINUX_FILE_SYSTEM.value)
-    perm     = Partition("perm",     size=8 * MiB,        type_guid=PartitionType.LINUX_FILE_SYSTEM.value)
-    dps      = Partition("dps",      size=8 * MiB,        type_guid=PartitionType.LINUX_FILE_SYSTEM.value)
-    data     = Partition("data",     size=8 * MiB,        type_guid=PartitionType.LINUX_FILE_SYSTEM.value)
-    boot_fs  = Partition("boot_fs",  size=2 * MiB,        type_guid=PartitionType.LINUX_FILE_SYSTEM.value)
+    perm     = Partition("perm",     size=PERM_SIZE,        type_guid=PartitionType.LINUX_FILE_SYSTEM.value)
+    dps      = Partition("dps",      size=DPS_SIZE,        type_guid=PartitionType.LINUX_FILE_SYSTEM.value)
+    data     = Partition("data",     size=DATA_SIZE,        type_guid=PartitionType.LINUX_FILE_SYSTEM.value)
+    boot_fs  = Partition("boot_fs",  size=BOOTFS_SIZE,        type_guid=PartitionType.LINUX_FILE_SYSTEM.value)
 
     disk.table.partitions.add(system_a)
     disk.table.partitions.add(perm)
@@ -71,9 +80,9 @@ def main():
     system_a.write_data(disk, squashfs_data)
 
     print("Writing ext4 partitions (perm, dps, data)...")
-    perm.write_data(disk, make_empty_ext4(8 * MiB))
-    dps.write_data(disk, make_empty_ext4(8 * MiB))
-    data.write_data(disk, make_empty_ext4(8 * MiB))
+    perm.write_data(disk, make_empty_ext4(PERM_SIZE))
+    dps.write_data(disk, make_empty_ext4(DPS_SIZE))
+    data.write_data(disk, make_empty_ext4(DATA_SIZE))
 
     print("Writing boot_fs (RAW0)...")
     boot_fs.write_data(disk, mk_bootfs())
