@@ -47,7 +47,7 @@ done
   -nographic \
   -kernel "${CACHE}/initramfs/vmlinuz" \
   -initrd "${CACHE}/initramfs/initramfs-repacked.cpio" \
-  -append "rootwait console=ttyAMA0 iomem=relaxed boot_bank=a ${MASK_ARGS}" \
+  -append "rootwait console=ttyAMA0 iomem=relaxed boot_bank=a selinux=0 ${MASK_ARGS}" \
   -device virtio-blk-device,drive=drive0 \
   -drive "file=${CACHE}/rootfs.img,if=none,format=raw,id=drive0" \
   -netdev user,id=net0,hostfwd=tcp::2222-:22 \
