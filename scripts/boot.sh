@@ -33,6 +33,12 @@ MASK_SERVICES=(
 
   # Don't wait for the network to come online
   systemd-networkd-wait-online.service
+
+  # Will fail when selinux=0
+  selinuxsetenforce.service
+
+  # Seems to burn CPU for no reason?
+  powerman.service
 )
 
 MASK_ARGS=""
