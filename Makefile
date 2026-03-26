@@ -1,5 +1,8 @@
 PYTHON     := python3
 SCRIPTS    := scripts
+VENV       := .venv
+VENV_PYTHON := $(VENV)/bin/python
+VENV_STAMP := $(VENV)/.installed
 
 # ── QEMU ──────────────────────────────────────────────────────────────────────
 QEMU_SRC   := qemu
@@ -21,9 +24,17 @@ INITRAMFS   := $(WORK)/initramfs
 ROOTFS_IMG  := $(WORK)/rootfs.img
 
 # ─────────────────────────────────────────────────────────────────────────────
-.PHONY: all boot qemu download extract initramfs rootfs clean distclean
+.PHONY: all boot qemu download extract initramfs rootfs clean distclean venv
 
 all: boot
+
+# ── Venv ──────────────────────────────────────────────────────────────────────
+$(VENV_STAMP): requirements.txt
+	$(PYTHON) -m venv $(VENV)
+	$(VENV)/bin/pip install -q -r requirements.txt
+	touch $@
+
+venv: $(VENV_STAMP)
 
 # ── QEMU build ────────────────────────────────────────────────────────────────
 $(QEMU_BUILD)/Makefile: $(QEMU_SRC)/configure
@@ -45,17 +56,17 @@ UTILS := $(SCRIPTS)/utilities/vbf.py \
 $(WORK):
 	mkdir -p $@
 
-$(DOWNLOADS): $(SCRIPTS)/download.py | $(WORK)
-	cd $(SCRIPTS) && $(PYTHON) download.py
+$(DOWNLOADS): $(SCRIPTS)/download.py | $(VENV_STAMP) $(WORK)
+	cd $(SCRIPTS) && $(CURDIR)/$(VENV_PYTHON) download.py
 
-$(EXTRACTED): $(DOWNLOADS) $(SCRIPTS)/extract.py $(UTILS)
-	cd $(SCRIPTS) && $(PYTHON) extract.py
+$(EXTRACTED): $(DOWNLOADS) $(SCRIPTS)/extract.py $(UTILS) | $(VENV_STAMP)
+	cd $(SCRIPTS) && $(CURDIR)/$(VENV_PYTHON) extract.py
 
-$(INITRAMFS): $(EXTRACTED) $(SCRIPTS)/initramfs.py $(UTILS)
-	cd $(SCRIPTS) && $(PYTHON) initramfs.py
+$(INITRAMFS): $(EXTRACTED) $(SCRIPTS)/initramfs.py $(UTILS) | $(VENV_STAMP)
+	cd $(SCRIPTS) && $(CURDIR)/$(VENV_PYTHON) initramfs.py
 
-$(ROOTFS_IMG): $(EXTRACTED) $(SCRIPTS)/rootfs.py $(UTILS)
-	cd $(SCRIPTS) && $(PYTHON) rootfs.py
+$(ROOTFS_IMG): $(EXTRACTED) $(SCRIPTS)/rootfs.py $(UTILS) | $(VENV_STAMP)
+	cd $(SCRIPTS) && $(CURDIR)/$(VENV_PYTHON) rootfs.py
 
 download:  $(DOWNLOADS)
 extract:   $(EXTRACTED)
@@ -71,4 +82,4 @@ clean:
 	rm -rf $(WORK)
 
 distclean: clean
-	rm -rf $(QEMU_BUILD)
+	rm -rf $(QEMU_BUILD) $(VENV)
