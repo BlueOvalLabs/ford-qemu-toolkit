@@ -22,23 +22,20 @@ MASK_SERVICES=(
   fnv2_ipc_vim_renice.service
 
   # ??? Misc services
-  tcpdump.service # Network Packet Capture
+  #tcpdump.service # Network Packet Capture
   cpmd.service # Cloud Package Manager Daemon        
-  pimd.service # PIMD multicast routing service
+  #pimd.service # PIMD multicast routing service
 
   # ALM package manager, launcher will crash
-  almbridge.service
-  launcher.service
-  pacmand.service
-
-  # Don't wait for the network to come online
-  systemd-networkd-wait-online.service
+  #almbridge.service
+  #launcher.service
+  #pacmand.service
 
   # Will fail when selinux=0
   selinuxsetenforce.service
 
   # Seems to burn CPU for no reason?
-  powerman.service
+  #powerman.service
 )
 
 MASK_ARGS=""
