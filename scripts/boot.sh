@@ -22,9 +22,9 @@ MASK_SERVICES=(
   fnv2_ipc_vim_renice.service
 
   # ??? Misc services
-  #tcpdump.service # Network Packet Capture
-  cpmd.service # Cloud Package Manager Daemon        
-  #pimd.service # PIMD multicast routing service
+  tcpdump.service # Network Packet Capture
+  #cpmd.service # Cloud Package Manager Daemon        
+  pimd.service # PIMD multicast routing service
 
   # ALM package manager, launcher will crash
   #almbridge.service
