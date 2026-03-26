@@ -1,14 +1,26 @@
 #!/bin/sh
 # added to init.d in initramfs
-# add netinit.done to rootfs to fix issues with MQTT broker and other services
 
 custom_enabled() {
 	return 0
 }
 
 custom_run() {
-    echo "tmpfs stuff"
-    mount -t tmpfs tmpfs /tmp
-    touch /tmp/netinit.done
-    mount --move /tmp $ROOTFS_DIR/tmp
+    echo "ford-qemu-toolkit: custom initramfs script"
+
+    # pre-mount /tmp and /run early so that it will be inherited
+    mount -t tmpfs tmpfs $ROOTFS_DIR/tmp
+    mount -t tmpfs tmpfs $ROOTFS_DIR/run
+
+    # fake network init being done
+    touch $ROOTFS_DIR/tmp/netinit.done
+    
+    # additional tools
+    # mkdir -p $ROOTFS_DIR/tmp/bin
+    # cp /usr/bin/nano $ROOTFS_DIR/tmp/bin/nano
+    # chmod 755 $ROOTFS_DIR/tmp/bin/nano
+
+    # network config for qemu user mode networking
+    mkdir -p $ROOTFS_DIR/run/systemd/network
+    cp /etc/systemd/network/10-eth0.network $ROOTFS_DIR/run/systemd/network/
 }

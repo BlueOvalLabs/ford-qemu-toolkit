@@ -23,6 +23,8 @@ PATCHES_DIR = "patches"
 # Each entry is (src relative to PATCHES_DIR, dest relative to EXTRACTED_DIR).
 PATCHES = [
     ("98-custom", "init.d/98-custom"),
+    #("nano", "usr/bin/nano"),
+    ("10-eth0.network", "etc/systemd/network/10-eth0.network"),
 ]
 
 def extract_kernel():
